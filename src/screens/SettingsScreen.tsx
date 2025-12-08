@@ -316,7 +316,7 @@ export default function SettingsScreen() {
 
             {/* Version */}
             <Text style={[styles.versionText, { color: theme.text + '60' }]}>
-                Agenda Richissime v1.0.0
+                Smart Agenda v1.0.0
             </Text>
         </ScrollView>
     );

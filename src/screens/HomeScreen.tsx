@@ -30,7 +30,7 @@ export default function HomeScreen() {
     useEffect(() => {
         const hour = new Date().getHours();
         if (hour < 12) setGreeting('Bonjour');
-        else if (hour < 18) setGreeting('Bon après-midi');
+        else if (hour < 16) setGreeting('Bon après-midi');
         else setGreeting('Bonsoir');
     }, []);
 
@@ -158,36 +158,35 @@ export default function HomeScreen() {
             </Card>
 
             {/* Graphique de productivité */}
-           {/* Graphique de productivité */}
-<Card style={[styles.card, { backgroundColor: theme.card }]}>
-  <Card.Title
-    title="Productivité hebdomadaire"
-    left={(props) => <Icon {...props} name="chart-bar" size={24} color={theme.primary} />}
-  />
-  <Card.Content>
-    <View style={styles.chartContainer}>
-      {chartData.map((item, index) => (
-        <View key={index} style={styles.barContainer}>
-          <View style={styles.barLabels}>
-            <Text style={[styles.barLabel, { color: theme.text }]}>{item.x}</Text>
-            <Text style={[styles.barValue, { color: theme.text }]}>{item.y}</Text>
-          </View>
-          <View  style={[styles.barBackground,{ backgroundColor: theme.background,}]}>
-            <View 
-              style={[
-                styles.barFill, 
-                { 
-                  height: `${(item.y / 10) * 100}%`,
-                  backgroundColor: theme.primary 
-                }
-              ]} 
-            />
-          </View>
-        </View>
-      ))}
-    </View>
-  </Card.Content>
-</Card>
+            <Card style={[styles.card, { backgroundColor: theme.card }]}>
+                <Card.Title
+                    title="Productivité hebdomadaire"
+                    left={(props) => <Icon {...props} name="chart-bar" size={24} color={theme.primary} />}
+                />
+                <Card.Content>
+                    <View style={styles.chartContainer}>
+                        {chartData.map((item, index) => (
+                            <View key={index} style={styles.barContainer}>
+                                <View style={styles.barLabels}>
+                                    <Text style={[styles.barLabel, { color: theme.text }]}>{item.x}</Text>
+                                    <Text style={[styles.barValue, { color: theme.text }]}>{item.y}</Text>
+                                </View>
+                                <View style={[styles.barBackground, { backgroundColor: theme.background, }]}>
+                                    <View
+                                        style={[
+                                            styles.barFill,
+                                            {
+                                                height: `${(item.y / 10) * 100}%`,
+                                                backgroundColor: theme.primary
+                                            }
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                </Card.Content>
+            </Card>
 
             {/* Citation du jour */}
             <Card style={[styles.card, { backgroundColor: theme.card }]}>
@@ -197,7 +196,7 @@ export default function HomeScreen() {
                 />
                 <Card.Content>
                     <Text style={[styles.quote, { color: theme.text }]}>
-                        "{motivationalQuotes[0]}"
+                        "{motivationalQuotes[1]}"
                     </Text>
                 </Card.Content>
             </Card>
@@ -372,40 +371,40 @@ const styles = StyleSheet.create({
     },
 
     // AJOUTE ces styles :
-chartContainer: {
-  flexDirection: 'row',
-  height: 150,
-  alignItems: 'flex-end',
-  justifyContent: 'space-between',
-  marginTop: 10,
-},
-barContainer: {
-  alignItems: 'center',
-  flex: 1,
-},
-barLabels: {
-  alignItems: 'center',
-  marginBottom: 5,
-},
-barLabel: {
-  fontSize: 10,
-  marginBottom: 2,
-},
-barValue: {
-  fontSize: 12,
-  fontWeight: 'bold',
-},
-barBackground: {
-  width: 20,
-  height: 100,
- // backgroundColor: theme.background,
-  borderRadius: 10,
-  overflow: 'hidden',
-},
-barFill: {
-  width: '100%',
-  position: 'absolute',
-  bottom: 0,
-  borderRadius: 10,
-},
+    chartContainer: {
+        flexDirection: 'row',
+        height: 150,
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        marginTop: 10,
+    },
+    barContainer: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    barLabels: {
+        alignItems: 'center',
+        marginBottom: 5,
+    },
+    barLabel: {
+        fontSize: 10,
+        marginBottom: 2,
+    },
+    barValue: {
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    barBackground: {
+        width: 20,
+        height: 100,
+        // backgroundColor: theme.background,
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    barFill: {
+        width: '100%',
+        position: 'absolute',
+        bottom: 0,
+        borderRadius: 10,
+    },
 });
