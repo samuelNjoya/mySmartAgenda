@@ -1,69 +1,172 @@
-import React, { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+/**
+ * App.tsx - Point d'entrée principal de l'application
+ * Assemble la navigation, les contextes et la configuration
+ */
+
+import 'react-native-gesture-handler';
+import React, { useState, useEffect } from 'react';
+import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { PaperProvider } from 'react-native-paper';
-import * as Notifications from 'expo-notifications';
-import { ThemeProvider } from './src/context/ThemeContext';
-import MainNavigator from './src/navigation/MainNavigator';
-import { initDatabase } from './src/database';
-import Constants from 'expo-constants';
-import { AppProvider } from './src/context/AppContext';
+import { createStackNavigator } from '@react-navigation/stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
-// Désactiver les notifications en développement Expo Go
-const isExpoGo = Constants.appOwnership === 'expo';
+// Contextes
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
-// Configuration des notifications seulement si pas sur Expo Go
-if (!isExpoGo) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
-}
+// Navigation
+import { TabNavigator } from './src/navigation/TabNavigator';
 
-export default function App() {
+// Écrans
+import { PinLockScreen } from './src/screens/auth/PinLockScreen';
+import { EventFormScreen } from './src/screens/calendar/EventFormScreen';
+import { EventDetailScreen } from './src/screens/calendar/EventDetailScreen';
+import { TaskFormScreen } from './src/screens/tasks/TaskFormScreen';
+import { TaskDetailScreen } from './src/screens/tasks/TaskDetailScreen';
+
+// Services
+import { storage, STORAGE_KEYS } from './src/services/storage';
+
+const Stack = createStackNavigator();
+
+// ==================== COMPOSANT PRINCIPAL AVEC CONTEXTE ====================
+
+function AppContent() {
+  const { colors, theme } = useTheme();
+  const [isLocked, setIsLocked] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ==================== EFFETS ====================
+
   useEffect(() => {
-    // Initialiser la base de données
-    const initializeApp = async () => {
-      try {
-        await initDatabase();
-        console.log('✅ Application initialisée avec succès');
-      } catch (error) {
-        console.error('❌ Erreur lors de l\'initialisation:', error);
-      }
-    };
-
-    initializeApp();
-
-    // Demander la permission pour les notifications seulement si pas sur Expo Go
-    if (!isExpoGo) {
-      (async () => {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-          console.warn('⚠️ Permission pour les notifications refusée');
-        }
-      })();
-    }
+    checkPinStatus();
   }, []);
 
+  // ==================== FONCTIONS ====================
+
+  /**
+   * Vérifie si le PIN est activé
+   */
+  async function checkPinStatus() {
+    try {
+      const settings = await storage.get(STORAGE_KEYS.SETTINGS);
+      const pinEnabled = settings?.security?.pinEnabled || false;
+      setIsLocked(pinEnabled);
+    } catch (error) {
+      console.error('Erreur lors de la vérification du PIN:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  /**
+   * Déverrouille l'application
+   */
+  function handleUnlock() {
+    setIsLocked(false);
+  }
+
+  // ==================== RENDER ====================
+
+  if (isLoading) {
+    return null; // Ou un écran de chargement
+  }
+
+  // Si l'app est verrouillée, afficher l'écran PIN
+  if (isLocked) {
+    return (
+      <>
+        <StatusBar
+          barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
+        <PinLockScreen onUnlock={handleUnlock} />
+      </>
+    );
+  }
+
+  // Application déverrouillée
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AppProvider>
-          <ThemeProvider>
-            <PaperProvider>
-              <NavigationContainer>
-                <MainNavigator />
-                <StatusBar style="auto" />
-              </NavigationContainer>
-            </PaperProvider>
-          </ThemeProvider>
-        </AppProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <NavigationContainer>
+      <StatusBar
+        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
+      />
+      
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+            borderBottomWidth: 1,
+          },
+          headerTintColor: colors.text,
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 18,
+          },
+        }}
+      >
+        {/* Tabs principaux */}
+        <Stack.Screen
+          name="MainTabs"
+          component={TabNavigator}
+          options={{ headerShown: false }}
+        />
+
+        {/* Formulaire d'événement */}
+        <Stack.Screen
+          name="EventForm"
+          component={EventFormScreen}
+          options={({ route }) => ({
+            title: (route.params as any)?.eventId
+              ? 'Modifier l\'événement'
+              : 'Nouvel événement',
+            presentation: 'modal',
+          })}
+        />
+
+        {/* Détails d'événement */}
+        <Stack.Screen
+          name="EventDetail"
+          component={EventDetailScreen}
+          options={{ title: 'Détails de l\'événement' }}
+        />
+
+        {/* Formulaire de tâche */}
+        <Stack.Screen
+          name="TaskForm"
+          component={TaskFormScreen}
+          options={({ route }) => ({
+            title: (route.params as any)?.taskId
+              ? 'Modifier la tâche'
+              : 'Nouvelle tâche',
+            presentation: 'modal',
+          })}
+        />
+
+        {/* Détails de tâche */}
+        <Stack.Screen
+          name="TaskDetail"
+          component={TaskDetailScreen}
+          options={{ title: 'Détails de la tâche' }}
+        />
+      </Stack.Navigator>
+
+      {/* Toast notifications */}
+      <Toast />
+    </NavigationContainer>
+  );
+}
+
+// ==================== APP AVEC PROVIDERS ====================
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
