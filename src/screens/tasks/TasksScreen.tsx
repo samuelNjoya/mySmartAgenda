@@ -1,28 +1,30 @@
 /**
- * Écran Tâches (COMPLET)
- * Gestion complète des tâches avec filtres, tri et actions
+ * Écran Tâches (VERSION AMÉLIORÉE)
+ * Avec BottomSheet pour formulaires et design optimisé
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
-  ScrollView,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
   RefreshControl,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../../constants/Sizes';
 import { formatDate, isTodayCheck } from '../../utils/dateHelpers';
 import { storage, STORAGE_KEYS } from '../../services/storage';
 import { Task, TaskList } from '../../types';
-import { Spinner, Card, EmptyState } from '../../components/common';
+import { Spinner, EmptyState, BottomSheet, BottomSheetRef } from '../../components/common';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
+
+// Import du formulaire
+import { TaskForm } from './TaskForm';
 
 // ==================== TYPES ====================
 
@@ -32,13 +34,15 @@ type FilterType = 'all' | 'today' | 'week' | 'overdue' | 'completed';
 
 export function TasksScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const bottomSheetRef = useRef<BottomSheetRef>(null);
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [lists, setLists] = useState<TaskList[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedListId, setSelectedListId] = useState<string>('all');
+  const [editingTaskId, setEditingTaskId] = useState<string | undefined>();
 
   // ==================== EFFETS ====================
 
@@ -200,16 +204,23 @@ export function TasksScreen() {
   /**
    * Navigation vers le formulaire
    */
-  function navigateToForm(taskId?: string) {
-    navigation.navigate('TaskForm', { taskId, listId: selectedListId !== 'all' ? selectedListId : 'default' });
+  function openTaskForm(taskId?: string) {
+    setEditingTaskId(taskId);
+    bottomSheetRef.current?.open();
   }
 
   /**
-   * Navigation vers les détails
+   * Ferme le formulaire et recharge les données
    */
-  function navigateToDetail(taskId: string) {
-    navigation.navigate('TaskDetail', { taskId });
+  async function closeTaskForm() {
+    bottomSheetRef.current?.close();
+    setEditingTaskId(undefined);
+    await loadData();
   }
+
+  /**
+   * Navigation vers les détails (supprimée - pas besoin)
+   */
 
   /**
    * Obtient la couleur de la priorité
@@ -240,116 +251,52 @@ export function TasksScreen() {
   // ==================== RENDER ====================
 
   if (loading) {
-    return <Spinner fullScreen message="Chargement des tâches..." />;
+    return <Spinner fullScreen message="Chargement..." />;
   }
 
   const filteredTasks = getFilteredTasks();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Filtres rapides */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersContent}
-      >
-        {[
-          { key: 'all', label: 'Toutes', icon: 'list-outline' },
-          { key: 'today', label: 'Aujourd\'hui', icon: 'today-outline' },
-          { key: 'week', label: 'Cette semaine', icon: 'calendar-outline' },
-          { key: 'overdue', label: 'En retard', icon: 'alert-circle-outline' },
-          { key: 'completed', label: 'Terminées', icon: 'checkmark-done-outline' },
-        ].map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor:
-                  filter === item.key ? colors.primary : colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setFilter(item.key as FilterType)}
-          >
-            <Ionicons
-              name={item.icon as any}
-              size={16}
-              color={filter === item.key ? '#FFFFFF' : colors.text}
-            />
-            <Text
-              style={[
-                styles.filterLabel,
-                {
-                  color: filter === item.key ? '#FFFFFF' : colors.text,
-                },
-              ]}
-            >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Listes */}
-      {lists.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.listsScroll}
-          contentContainerStyle={styles.listsContent}
-        >
-          <TouchableOpacity
-            style={[
-              styles.listChip,
-              {
-                backgroundColor:
-                  selectedListId === 'all' ? colors.primary : colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setSelectedListId('all')}
-          >
-            <Text
-              style={[
-                styles.listLabel,
-                {
-                  color: selectedListId === 'all' ? '#FFFFFF' : colors.text,
-                },
-              ]}
-            >
-              Toutes les listes
-            </Text>
-          </TouchableOpacity>
-
-          {lists.map((list) => (
+      {/* Filtres compacts */}
+      <View style={[styles.filtersContainer, { borderBottomColor: colors.border }]}>
+        <View style={styles.filterRow}>
+          {[
+            { key: 'all', label: 'Toutes', icon: 'list' },
+            { key: 'today', label: 'Aujourd\'hui', icon: 'today' },
+            { key: 'week', label: 'Semaine', icon: 'calendar' },
+            { key: 'overdue', label: 'Retard', icon: 'alert-circle' },
+            { key: 'completed', label: 'Faites', icon: 'checkmark-done' },
+          ].map((item) => (
             <TouchableOpacity
-              key={list.id}
+              key={item.key}
               style={[
-                styles.listChip,
-                {
-                  backgroundColor:
-                    selectedListId === list.id ? list.color : colors.surface,
-                  borderColor: colors.border,
+                styles.filterButton,
+                filter === item.key && {
+                  backgroundColor: colors.primary,
                 },
               ]}
-              onPress={() => setSelectedListId(list.id)}
+              onPress={() => setFilter(item.key as FilterType)}
             >
+              <Ionicons
+                name={item.icon as any}
+                size={18}
+                color={filter === item.key ? '#FFFFFF' : colors.textSecondary}
+              />
               <Text
                 style={[
-                  styles.listLabel,
+                  styles.filterText,
                   {
-                    color: selectedListId === list.id ? '#FFFFFF' : colors.text,
+                    color: filter === item.key ? '#FFFFFF' : colors.textSecondary,
                   },
                 ]}
               >
-                {list.name}
+                {item.label}
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
-      )}
+        </View>
+      </View>
 
       {/* Liste des tâches */}
       {filteredTasks.length === 0 ? (
@@ -359,10 +306,10 @@ export function TasksScreen() {
           message={
             filter === 'completed'
               ? 'Aucune tâche terminée'
-              : "Vous n'avez aucune tâche pour le moment"
+              : "Créez votre première tâche"
           }
-          actionLabel="Créer une tâche"
-          onAction={() => navigateToForm()}
+          actionLabel="Nouvelle tâche"
+          onAction={() => openTaskForm()}
         />
       ) : (
         <FlatList
@@ -377,113 +324,81 @@ export function TasksScreen() {
             />
           }
           renderItem={({ item }) => (
-            <Card variant="outlined" style={styles.taskCard}>
+            <TouchableOpacity
+              style={[
+                styles.taskCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => openTaskForm(item.id)}
+              activeOpacity={0.7}
+            >
+              {/* Checkbox */}
               <TouchableOpacity
-                style={styles.taskItem}
-                onPress={() => navigateToDetail(item.id)}
+                onPress={() => toggleTask(item.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {/* Checkbox */}
-                <TouchableOpacity
-                  onPress={() => toggleTask(item.id)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                <Ionicons
+                  name={
+                    item.completed
+                      ? 'checkmark-circle'
+                      : 'ellipse-outline'
+                  }
+                  size={24}
+                  color={item.completed ? colors.success : colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {/* Contenu */}
+              <View style={styles.taskContent}>
+                <Text
+                  style={[
+                    styles.taskTitle,
+                    { color: colors.text },
+                    item.completed && styles.taskCompleted,
+                  ]}
+                  numberOfLines={1}
                 >
-                  <Ionicons
-                    name={
-                      item.completed
-                        ? 'checkmark-circle'
-                        : 'ellipse-outline'
-                    }
-                    size={28}
-                    color={item.completed ? colors.success : colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                  {item.title}
+                </Text>
 
-                {/* Contenu */}
-                <View style={styles.taskContent}>
-                  <Text
-                    style={[
-                      styles.taskTitle,
-                      { color: colors.text },
-                      item.completed && styles.taskCompleted,
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
-                  </Text>
-
-                  {/* Métadonnées */}
-                  <View style={styles.taskMeta}>
-                    {/* Date d'échéance */}
-                    {item.dueDate && (
-                      <View style={styles.metaItem}>
-                        <Ionicons
-                          name="calendar-outline"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.metaText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {formatDate(new Date(item.dueDate), 'd MMM')}
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Liste */}
+                {/* Métadonnées compactes */}
+                <View style={styles.taskMeta}>
+                  {item.dueDate && (
                     <View style={styles.metaItem}>
                       <Ionicons
-                        name="list-outline"
-                        size={14}
+                        name="calendar-outline"
+                        size={12}
                         color={colors.textSecondary}
                       />
-                      <Text
-                        style={[
-                          styles.metaText,
-                          { color: colors.textSecondary },
-                        ]}
-                      >
-                        {getListName(item.listId)}
+                      <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                        {formatDate(new Date(item.dueDate), 'd MMM')}
                       </Text>
                     </View>
+                  )}
 
-                    {/* Sous-tâches */}
-                    {item.subtasks.length > 0 && (
-                      <View style={styles.metaItem}>
-                        <Ionicons
-                          name="checkbox-outline"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.metaText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {item.subtasks.filter((s) => s.completed).length}/
-                          {item.subtasks.length}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                  {item.subtasks.length > 0 && (
+                    <View style={styles.metaItem}>
+                      <Ionicons
+                        name="checkbox-outline"
+                        size={12}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                        {item.subtasks.filter((s) => s.completed).length}/{item.subtasks.length}
+                      </Text>
+                    </View>
+                  )}
                 </View>
+              </View>
 
-                {/* Badge de priorité */}
-                <View
-                  style={[
-                    styles.priorityBadge,
-                    { backgroundColor: getPriorityColor(item.priority) },
-                  ]}
-                >
-                  <Text style={styles.priorityText}>
-                    {item.priority === 'urgent' ? 'URG' : item.priority === 'high' ? 'HAU' : item.priority === 'normal' ? 'NOR' : 'BAS'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </Card>
+              {/* Badge priorité */}
+              <View
+                style={[
+                  styles.priorityBadge,
+                  { backgroundColor: getPriorityColor(item.priority) },
+                ]}
+              />
+            </TouchableOpacity>
           )}
         />
       )}
@@ -491,10 +406,19 @@ export function TasksScreen() {
       {/* Bouton flottant */}
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => navigateToForm()}
+        onPress={() => openTaskForm()}
       >
-        <Ionicons name="add" size={32} color="#FFFFFF" />
+        <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* BottomSheet pour formulaire */}
+      <BottomSheet ref={bottomSheetRef} snapPoint={0.92}>
+        <TaskForm
+          taskId={editingTaskId}
+          listId={selectedListId !== 'all' ? selectedListId : 'default'}
+          onClose={closeTaskForm}
+        />
+      </BottomSheet>
     </View>
   );
 }
@@ -505,98 +429,75 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  filtersScroll: {
-    maxHeight: 60,
+  filtersContainer: {
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: SPACING.xs,
   },
-  filtersContent: {
-    padding: SPACING.md,
-  },
-  filterChip: {
+  filterRow: {
     flexDirection: 'row',
+    paddingHorizontal: SPACING.xs,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'column',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1,
-    marginRight: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginHorizontal: 2,
   },
-  filterLabel: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
+  filterText: {
+    fontSize: 10,
     fontWeight: '600',
-    marginLeft: SPACING.xs,
-  },
-  listsScroll: {
-    maxHeight: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  listsContent: {
-    padding: SPACING.md,
-  },
-  listChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1,
-    marginRight: SPACING.sm,
-  },
-  listLabel: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
-    fontWeight: '600',
+    marginTop: 2,
   },
   listContent: {
-    padding: SPACING.md,
+    padding: SPACING.sm,
   },
   taskCard: {
-    marginBottom: SPACING.sm,
-  },
-  taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.xs,
+    borderWidth: 1,
   },
   taskContent: {
     flex: 1,
-    marginLeft: SPACING.md,
+    marginLeft: SPACING.sm,
   },
   taskTitle: {
     fontSize: TYPOGRAPHY.body.fontSize,
     fontWeight: '500',
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
   },
   taskCompleted: {
     textDecorationLine: 'line-through',
-    opacity: 0.6,
+    opacity: 0.5,
   },
   taskMeta: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
+    gap: SPACING.sm,
+    marginTop: 2,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 2,
   },
   metaText: {
-    fontSize: TYPOGRAPHY.small.fontSize,
-    marginLeft: SPACING.xs,
+    fontSize: 11,
   },
   priorityBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
-    marginLeft: SPACING.sm,
-  },
-  priorityText: {
-    color: '#FFFFFF',
-    fontSize: TYPOGRAPHY.tiny.fontSize,
-    fontWeight: '700',
+    width: 4,
+    height: '100%',
+    borderRadius: 2,
+    marginLeft: SPACING.xs,
   },
   fab: {
     position: 'absolute',
-    right: SPACING.lg,
-    bottom: SPACING.lg,
+    right: SPACING.md,
+    bottom: SPACING.md,
     width: 56,
     height: 56,
     borderRadius: 28,

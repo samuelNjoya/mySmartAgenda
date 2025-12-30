@@ -1,38 +1,43 @@
 /**
- * Écran Calendrier
- * Affiche le calendrier mensuel avec les événements
+ * Écran Calendrier avec BottomSheet
+ * Vue mensuelle compacte avec événements
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
-import { SPACING, TYPOGRAPHY } from '../../constants/Sizes';
+import { SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../../constants/Sizes';
 import { formatDate, isSameDayCheck } from '../../utils/dateHelpers';
 import { storage, STORAGE_KEYS } from '../../services/storage';
 import { Event } from '../../types';
-import { Spinner, Card, EmptyState, Button } from '../../components/common';
+import { Spinner, EmptyState, BottomSheet, BottomSheetRef } from '../../components/common';
 import Toast from 'react-native-toast-message';
+
+// Import du formulaire
+import { EventForm } from './EventForm';
 
 // ==================== COMPOSANT PRINCIPAL ====================
 
 export function CalendarScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const bottomSheetRef = useRef<BottomSheetRef>(null);
+
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(
-    formatDate(new Date(), 'yyyy-MM-dd')
-  );
+  const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
+  const [selectedDate, setSelectedDate] = useState(formatDate(new Date(), 'yyyy-MM-dd'));
   const [markedDates, setMarkedDates] = useState<any>({});
+  const [editingEventId, setEditingEventId] = useState<string | undefined>();
 
   // ==================== EFFETS ====================
 
@@ -53,26 +58,9 @@ export function CalendarScreen() {
       const allEvents = (await storage.get<Event[]>(STORAGE_KEYS.EVENTS)) || [];
       const activeEvents = allEvents.filter((e) => !e.deletedAt);
       setEvents(activeEvents);
-
-      // Marquer les dates avec événements
-      const marked: any = {};
-      activeEvents.forEach((event) => {
-        const dateKey = formatDate(new Date(event.startDate), 'yyyy-MM-dd');
-        if (!marked[dateKey]) {
-          marked[dateKey] = { marked: true, dotColor: event.color };
-        }
-      });
-
-      // Marquer la date sélectionnée
-      marked[selectedDate] = {
-        ...marked[selectedDate],
-        selected: true,
-        selectedColor: colors.primary,
-      };
-
-      setMarkedDates(marked);
+      generateMarkedDates(activeEvents);
     } catch (error) {
-      console.error('Erreur lors du chargement des événements:', error);
+      console.error('Erreur:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -80,71 +68,93 @@ export function CalendarScreen() {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
   /**
-   * Sélection d'une date
+   * Génère les marqueurs pour le calendrier
    */
-  function onDayPress(day: DateData) {
-    setSelectedDate(day.dateString);
+  function generateMarkedDates(eventsList: Event[]) {
+    const marked: any = {};
 
-    // Mettre à jour les dates marquées
-    const marked = { ...markedDates };
-    Object.keys(marked).forEach((key) => {
-      if (marked[key].selected) {
-        delete marked[key].selected;
-        delete marked[key].selectedColor;
+    eventsList.forEach((event) => {
+      const dateKey = formatDate(new Date(event.startDate), 'yyyy-MM-dd');
+      if (!marked[dateKey]) {
+        marked[dateKey] = { dots: [] };
       }
+      marked[dateKey].dots.push({ color: event.color });
     });
-    marked[day.dateString] = {
-      ...marked[day.dateString],
-      selected: true,
-      selectedColor: colors.primary,
-    };
+
+    // Ajouter la sélection
+    if (marked[selectedDate]) {
+      marked[selectedDate].selected = true;
+      marked[selectedDate].selectedColor = colors.primary;
+    } else {
+      marked[selectedDate] = {
+        selected: true,
+        selectedColor: colors.primary,
+      };
+    }
+
     setMarkedDates(marked);
   }
 
   /**
-   * Événements pour la date sélectionnée
+   * Gère la sélection d'une date
+   */
+  function handleDayPress(day: DateData) {
+    const dateKey = formatDate(new Date(day.year, day.month - 1, day.day), 'yyyy-MM-dd');
+    setSelectedDate(dateKey);
+    generateMarkedDates(events);
+  }
+
+  /**
+   * Filtre les événements du jour sélectionné
    */
   function getEventsForSelectedDate(): Event[] {
-    return events.filter((event) =>
-      isSameDayCheck(new Date(event.startDate), new Date(selectedDate))
-    );
+    return events.filter((event) => {
+      const eventDate = formatDate(new Date(event.startDate), 'yyyy-MM-dd');
+      return eventDate === selectedDate;
+    });
   }
 
   /**
-   * Navigation vers le formulaire de création
+   * Ouvre le formulaire
    */
-  function navigateToEventForm() {
-    navigation.navigate('EventForm', { date: new Date(selectedDate) });
+  function openEventForm(eventId?: string) {
+    setEditingEventId(eventId);
+    bottomSheetRef.current?.open();
   }
 
   /**
-   * Navigation vers les détails d'un événement
+   * Ferme le formulaire
    */
-  function navigateToEventDetail(eventId: string) {
-    navigation.navigate('EventDetail', { eventId });
+  async function closeEventForm() {
+    bottomSheetRef.current?.close();
+    setEditingEventId(undefined);
+    await loadEvents();
   }
 
   // ==================== RENDER ====================
 
   if (loading) {
-    return <Spinner fullScreen message="Chargement du calendrier..." />;
+    return <Spinner fullScreen message="Chargement..." />;
   }
 
-  const selectedDateEvents = getEventsForSelectedDate();
+  const dayEvents = getEventsForSelectedDate();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Calendrier */}
       <Calendar
         current={selectedDate}
-        onDayPress={onDayPress}
+        onDayPress={handleDayPress}
+        markingType="multi-dot"
         markedDates={markedDates}
         theme={{
-          calendarBackground: colors.background,
+          backgroundColor: colors.background,
+          calendarBackground: colors.card,
           textSectionTitleColor: colors.textSecondary,
           selectedDayBackgroundColor: colors.primary,
           selectedDayTextColor: '#FFFFFF',
@@ -152,109 +162,99 @@ export function CalendarScreen() {
           dayTextColor: colors.text,
           textDisabledColor: colors.disabled,
           monthTextColor: colors.text,
-          arrowColor: colors.primary,
-          'stylesheet.calendar.header': {
-            week: {
-              marginTop: 5,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-            },
-          },
+          textMonthFontWeight: '600',
         }}
+        style={styles.calendar}
       />
 
-      {/* Liste des événements pour la date sélectionnée */}
-      <View style={styles.eventsContainer}>
-        <View style={styles.eventsHeader}>
-          <Text style={[styles.eventsTitle, { color: colors.text }]}>
+      {/* Liste des événements */}
+      <View style={[styles.eventsContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
             {formatDate(new Date(selectedDate), 'EEEE d MMMM')}
           </Text>
-          <TouchableOpacity onPress={navigateToEventForm}>
-            <Ionicons name="add-circle" size={32} color={colors.primary} />
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => openEventForm()}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {selectedDateEvents.length === 0 ? (
+        {dayEvents.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
             title="Aucun événement"
-            message="Aucun événement prévu pour cette journée"
-            actionLabel="Créer un événement"
-            onAction={navigateToEventForm}
+            message="Créez un événement"
+            actionLabel="Créer"
+            onAction={() => openEventForm()}
           />
         ) : (
           <FlatList
-            data={selectedDateEvents}
+            data={dayEvents}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.eventsList}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  loadEvents();
+                }}
+                tintColor={colors.primary}
+              />
+            }
             renderItem={({ item }) => (
-              <Card
-                variant="outlined"
-                onPress={() => navigateToEventDetail(item.id)}
-                style={styles.eventCard}
+              <TouchableOpacity
+                style={[
+                  styles.eventCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderLeftColor: item.color,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => openEventForm(item.id)}
+                activeOpacity={0.7}
               >
-                <View style={styles.eventHeader}>
-                  <View
-                    style={[
-                      styles.eventColorBar,
-                      { backgroundColor: item.color },
-                    ]}
-                  />
-                  <View style={styles.eventContent}>
-                    <Text style={[styles.eventTitle, { color: colors.text }]}>
-                      {item.emoji} {item.title}
-                    </Text>
-                    <View style={styles.eventMeta}>
-                      <Ionicons
-                        name="time-outline"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                      <Text
-                        style={[
-                          styles.eventTime,
-                          { color: colors.textSecondary },
-                        ]}
-                      >
-                        {item.allDay
-                          ? 'Toute la journée'
-                          : `${formatDate(
-                              new Date(item.startDate),
-                              'HH:mm'
-                            )} - ${formatDate(
-                              new Date(item.endDate),
-                              'HH:mm'
-                            )}`}
-                      </Text>
-                    </View>
+                <Text style={styles.eventEmoji}>{item.emoji}</Text>
+                <View style={styles.eventContent}>
+                  <Text style={[styles.eventTitle, { color: colors.text }]} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <View style={styles.eventMeta}>
+                    {!item.allDay && (
+                      <View style={styles.metaItem}>
+                        <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                          {formatDate(new Date(item.startDate), 'HH:mm')}
+                        </Text>
+                      </View>
+                    )}
                     {item.location && (
-                      <View style={styles.eventMeta}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.eventLocation,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
+                      <View style={styles.metaItem}>
+                        <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
+                        <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
                           {item.location}
                         </Text>
                       </View>
                     )}
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
                 </View>
-              </Card>
+              </TouchableOpacity>
             )}
           />
         )}
       </View>
+
+      {/* BottomSheet pour formulaire */}
+      <BottomSheet ref={bottomSheetRef} snapPoint={0.92}>
+        <EventForm
+          eventId={editingEventId}
+          initialDate={new Date(selectedDate)}
+          onClose={closeEventForm}
+        />
+      </BottomSheet>
     </View>
   );
 }
@@ -265,33 +265,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  calendar: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
   eventsContainer: {
     flex: 1,
-    padding: SPACING.md,
   },
-  eventsHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    padding: SPACING.sm,
+    borderBottomWidth: 1,
   },
-  eventsTitle: {
-    fontSize: TYPOGRAPHY.h3.fontSize,
+  headerTitle: {
+    fontSize: TYPOGRAPHY.h4.fontSize,
     fontWeight: '600',
-    textTransform: 'capitalize',
   },
-  eventCard: {
-    marginBottom: SPACING.sm,
-  },
-  eventHeader: {
-    flexDirection: 'row',
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  eventColorBar: {
-    width: 4,
-    height: '100%',
-    borderRadius: 2,
-    marginRight: SPACING.md,
+  eventsList: {
+    padding: SPACING.sm,
+  },
+  eventCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.xs,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+  },
+  eventEmoji: {
+    fontSize: 28,
+    marginRight: SPACING.sm,
   },
   eventContent: {
     flex: 1,
@@ -299,19 +312,18 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: TYPOGRAPHY.body.fontSize,
     fontWeight: '600',
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
   },
   eventMeta: {
     flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  metaItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.xs,
+    gap: 2,
   },
-  eventTime: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
-    marginLeft: SPACING.xs,
-  },
-  eventLocation: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
-    marginLeft: SPACING.xs,
+  metaText: {
+    fontSize: 11,
   },
 });

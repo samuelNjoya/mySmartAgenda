@@ -1,9 +1,10 @@
 /**
- * Écran Plus
+ * Écran Plus avec Stack Navigation
  * Hub pour toutes les fonctionnalités avancées
  */
 
 import React from 'react';
+import { createStackNavigator } from '@react-navigation/stack';
 import {
   View,
   ScrollView,
@@ -14,32 +15,29 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
-import { SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../../constants/Sizes';
+import { SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../../constants/Sizes';
 import { Card } from '../../components/common';
 
-// ==================== TYPES ====================
+// Import des écrans
+import { HabitsScreen } from './habits/HabitsScreen';
+import { NotesScreen } from './notes/NotesScreen';
+import { AnalyticsScreen } from './analytics/AnalyticsScreen';
+import { PomodoroScreen } from './pomodoro/PomodoroScreen';
 
-interface Feature {
-  id: string;
-  title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  screen: string;
-}
+const Stack = createStackNavigator();
 
-// ==================== COMPOSANT PRINCIPAL ====================
+// ==================== HUB PRINCIPAL ====================
 
-export function MoreScreen() {
+function MoreHub() {
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
 
-  const features: Feature[] = [
+  const features = [
     {
       id: 'habits',
       title: 'Habitudes',
       description: 'Suivez vos habitudes quotidiennes',
-      icon: 'fitness',
+      icon: 'fitness' as const,
       color: '#10B981',
       screen: 'Habits',
     },
@@ -47,7 +45,7 @@ export function MoreScreen() {
       id: 'notes',
       title: 'Notes',
       description: 'Créez et organisez vos notes',
-      icon: 'document-text',
+      icon: 'document-text' as const,
       color: '#F59E0B',
       screen: 'Notes',
     },
@@ -55,7 +53,7 @@ export function MoreScreen() {
       id: 'analytics',
       title: 'Analytics',
       description: 'Visualisez vos statistiques',
-      icon: 'bar-chart',
+      icon: 'bar-chart' as const,
       color: '#8B5CF6',
       screen: 'Analytics',
     },
@@ -63,18 +61,11 @@ export function MoreScreen() {
       id: 'pomodoro',
       title: 'Pomodoro',
       description: 'Timer de productivité',
-      icon: 'timer',
+      icon: 'timer' as const,
       color: '#EF4444',
       screen: 'Pomodoro',
     },
   ];
-
-  /**
-   * Navigation vers une fonctionnalité
-   */
-  function navigateTo(screen: string) {
-    navigation.navigate(screen);
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -85,7 +76,7 @@ export function MoreScreen() {
             Fonctionnalités
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Explorez toutes les fonctionnalités avancées
+            Explorez toutes les fonctionnalités
           </Text>
         </View>
 
@@ -95,7 +86,7 @@ export function MoreScreen() {
             <TouchableOpacity
               key={feature.id}
               style={styles.featureCard}
-              onPress={() => navigateTo(feature.screen)}
+              onPress={() => navigation.navigate(feature.screen)}
               activeOpacity={0.7}
             >
               <Card
@@ -111,7 +102,7 @@ export function MoreScreen() {
                 >
                   <Ionicons
                     name={feature.icon}
-                    size={32}
+                    size={28}
                     color={feature.color}
                   />
                 </View>
@@ -128,97 +119,61 @@ export function MoreScreen() {
                 >
                   {feature.description}
                 </Text>
-
-                {/* Flèche */}
-                <View style={styles.arrow}>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={20}
-                    color={colors.primary}
-                  />
-                </View>
               </Card>
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Section bientôt disponible */}
-        <View style={styles.comingSoon}>
-          <Text style={[styles.comingSoonTitle, { color: colors.text }]}>
-            Bientôt disponible
-          </Text>
-
-          <Card variant="outlined">
-            <View style={styles.comingSoonItem}>
-              <Ionicons
-                name="calendar-outline"
-                size={24}
-                color={colors.textSecondary}
-              />
-              <View style={styles.comingSoonContent}>
-                <Text style={[styles.comingSoonItemTitle, { color: colors.text }]}>
-                  Routines
-                </Text>
-                <Text
-                  style={[
-                    styles.comingSoonItemDesc,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Créez des routines matinales et nocturnes
-                </Text>
-              </View>
-            </View>
-          </Card>
-
-          <Card variant="outlined">
-            <View style={styles.comingSoonItem}>
-              <Ionicons
-                name="people-outline"
-                size={24}
-                color={colors.textSecondary}
-              />
-              <View style={styles.comingSoonContent}>
-                <Text style={[styles.comingSoonItemTitle, { color: colors.text }]}>
-                  Collaboration
-                </Text>
-                <Text
-                  style={[
-                    styles.comingSoonItemDesc,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Partagez des événements avec d'autres
-                </Text>
-              </View>
-            </View>
-          </Card>
-
-          <Card variant="outlined">
-            <View style={styles.comingSoonItem}>
-              <Ionicons
-                name="sync-outline"
-                size={24}
-                color={colors.textSecondary}
-              />
-              <View style={styles.comingSoonContent}>
-                <Text style={[styles.comingSoonItemTitle, { color: colors.text }]}>
-                  Synchronisation Cloud
-                </Text>
-                <Text
-                  style={[
-                    styles.comingSoonItemDesc,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Synchronisez vos données entre appareils
-                </Text>
-              </View>
-            </View>
-          </Card>
-        </View>
       </ScrollView>
     </View>
+  );
+}
+
+// ==================== STACK NAVIGATOR ====================
+
+export function MoreScreen() {
+  const { colors } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: colors.card,
+          borderBottomColor: colors.border,
+          borderBottomWidth: 1,
+        },
+        headerTintColor: colors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: 18,
+        },
+      }}
+    >
+      <Stack.Screen
+        name="MoreHub"
+        component={MoreHub}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Habits"
+        component={HabitsScreen}
+        options={{ title: 'Habitudes' }}
+      />
+      <Stack.Screen
+        name="Notes"
+        component={NotesScreen}
+        options={{ title: 'Notes' }}
+      />
+      <Stack.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{ title: 'Analytics' }}
+      />
+      <Stack.Screen
+        name="Pomodoro"
+        component={PomodoroScreen}
+        options={{ title: 'Pomodoro' }}
+      />
+    </Stack.Navigator>
   );
 }
 
@@ -229,10 +184,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: SPACING.md,
+    padding: SPACING.sm,
   },
   header: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   title: {
     fontSize: TYPOGRAPHY.h1.fontSize,
@@ -252,16 +207,16 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
   featureCardInner: {
-    height: 180,
+    height: 160,
     justifyContent: 'space-between',
   },
   iconContainer: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     borderRadius: BORDER_RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   featureTitle: {
     fontSize: TYPOGRAPHY.h4.fontSize,
@@ -269,35 +224,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   featureDescription: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
-    lineHeight: 18,
-    marginBottom: SPACING.md,
-  },
-  arrow: {
-    alignSelf: 'flex-end',
-  },
-  comingSoon: {
-    marginTop: SPACING.xl,
-  },
-  comingSoonTitle: {
-    fontSize: TYPOGRAPHY.h3.fontSize,
-    fontWeight: '600',
-    marginBottom: SPACING.md,
-  },
-  comingSoonItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  comingSoonContent: {
-    flex: 1,
-    marginLeft: SPACING.md,
-  },
-  comingSoonItemTitle: {
-    fontSize: TYPOGRAPHY.body.fontSize,
-    fontWeight: '600',
-    marginBottom: SPACING.xs,
-  },
-  comingSoonItemDesc: {
-    fontSize: TYPOGRAPHY.caption.fontSize,
+    fontSize: TYPOGRAPHY.small.fontSize,
+    lineHeight: 16,
   },
 });

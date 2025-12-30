@@ -1,12 +1,15 @@
 /**
  * Navigation par onglets (Bottom Tabs)
  * 5 onglets principaux de l'application
+ * FIXED: SafeArea pour éviter que la tab bar traverse
  */
 
 import React from 'react';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ICON_SIZES } from '../constants/Sizes';
 import { TabParamList } from '../types';
 
@@ -23,6 +26,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 export function TabNavigator() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -33,13 +37,14 @@ export function TabNavigator() {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom, // FIXED: Ajoute le padding du bas
+          paddingBottom: insets.bottom, // FIXED: SafeArea
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '600',
+          marginBottom: 4,
         },
         headerStyle: {
           backgroundColor: colors.card,

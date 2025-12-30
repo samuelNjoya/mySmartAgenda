@@ -19,10 +19,6 @@ import { TabNavigator } from './src/navigation/TabNavigator';
 
 // Écrans
 import { PinLockScreen } from './src/screens/auth/PinLockScreen';
-import { EventFormScreen } from './src/screens/calendar/EventFormScreen';
-import { EventDetailScreen } from './src/screens/calendar/EventDetailScreen';
-import { TaskFormScreen } from './src/screens/tasks/TaskFormScreen';
-import { TaskDetailScreen } from './src/screens/tasks/TaskDetailScreen';
 
 // Services
 import { storage, STORAGE_KEYS } from './src/services/storage';
@@ -112,44 +108,6 @@ function AppContent() {
           name="MainTabs"
           component={TabNavigator}
           options={{ headerShown: false }}
-        />
-
-        {/* Formulaire d'événement */}
-        <Stack.Screen
-          name="EventForm"
-          component={EventFormScreen}
-          options={({ route }) => ({
-            title: (route.params as any)?.eventId
-              ? 'Modifier l\'événement'
-              : 'Nouvel événement',
-            presentation: 'modal',
-          })}
-        />
-
-        {/* Détails d'événement */}
-        <Stack.Screen
-          name="EventDetail"
-          component={EventDetailScreen}
-          options={{ title: 'Détails de l\'événement' }}
-        />
-
-        {/* Formulaire de tâche */}
-        <Stack.Screen
-          name="TaskForm"
-          component={TaskFormScreen}
-          options={({ route }) => ({
-            title: (route.params as any)?.taskId
-              ? 'Modifier la tâche'
-              : 'Nouvelle tâche',
-            presentation: 'modal',
-          })}
-        />
-
-        {/* Détails de tâche */}
-        <Stack.Screen
-          name="TaskDetail"
-          component={TaskDetailScreen}
-          options={{ title: 'Détails de la tâche' }}
         />
       </Stack.Navigator>
 
