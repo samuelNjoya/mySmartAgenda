@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 // Contextes
@@ -122,9 +122,11 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
+       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ThemeProvider>
         <AppContent />
       </ThemeProvider>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }

@@ -1,6 +1,10 @@
 /**
- * Formulaire d'Événement (Composant pour BottomSheet)
- * Version compacte sans marges excessives
+ * Formulaire d'Événement (PROFESSIONNEL)
+ * 
+ * CORRECTIONS:
+ * 1. CategoryPicker en MODAL (plus de ScrollView horizontal)
+ * 2. Vraies icônes Ionicons (plus d'emojis 😴🎯)
+ * 3. Design compact et pro
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,10 +24,9 @@ import { formatDate } from '../../utils/dateHelpers';
 import { validateEvent } from '../../utils/validation';
 import { storage, STORAGE_KEYS, saveItemToList } from '../../services/storage';
 import { Event } from '../../types';
-import { Input, Button } from '../../components/common';
+import { Input, Button, CategoryPicker } from '../../components/common';
 import Toast from 'react-native-toast-message';
-
-// ==================== PROPS ====================
+import { EVENT_CATEGORIES, getCategoryColor, getCategoryIcon, getCategoryName } from '../../constants/Categories';
 
 interface EventFormProps {
   eventId?: string;
@@ -31,33 +34,26 @@ interface EventFormProps {
   onClose: () => void;
 }
 
-// ==================== COMPOSANT ====================
-
 export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
   const { colors } = useTheme();
   const isEditing = !!eventId;
 
-  // États
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState(initialDate || new Date());
   const [endDate, setEndDate] = useState(initialDate || new Date());
   const [allDay, setAllDay] = useState(false);
-  const [color, setColor] = useState('#3B82F6');
-  const [emoji, setEmoji] = useState('📅');
+  const [categoryId, setCategoryId] = useState(EVENT_CATEGORIES[0].id);
+  
+  // CORRECTION: Modal pour catégories au lieu de ScrollView
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const colors_list = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
-    '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16',
-  ];
-
-  const emojis = ['📅', '💼', '🎉', '🏋️', '🍽️', '✈️', '📚', '🎬', '🛒', '❤️'];
 
   useEffect(() => {
     if (isEditing) {
@@ -76,8 +72,7 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         setStartDate(new Date(event.startDate));
         setEndDate(new Date(event.endDate));
         setAllDay(event.allDay);
-        setColor(event.color);
-        setEmoji(event.emoji);
+        setCategoryId(event.category || EVENT_CATEGORIES[0].id);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -88,14 +83,18 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
     try {
       setSaving(true);
 
-      const errors = validateEvent({ title, startDate, endDate });
+      const errors = validateEvent({ title, startDate, endDate, allDay });
       if (errors.length > 0) {
         Toast.show({
           type: 'error',
           text1: errors[0].message,
         });
+        setSaving(false);
         return;
       }
+
+      const color = getCategoryColor(categoryId, 'event');
+      const icon = getCategoryIcon(categoryId, 'event');
 
       const event: Event = {
         id: eventId || `event_${Date.now()}`,
@@ -106,8 +105,8 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         allDay,
         location,
         color,
-        category: undefined,
-        emoji,
+        category: categoryId,
+        emoji: icon, // Stocke le nom de l'icône Ionicons
         recurrence: undefined,
         reminders: [],
         createdAt: new Date(),
@@ -133,14 +132,15 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
     }
   }
 
+  // Catégorie sélectionnée
+  const selectedCategory = EVENT_CATEGORIES.find((c) => c.id === categoryId);
+
   return (
     <View style={styles.container}>
-      {/* Titre */}
       <Text style={[styles.header, { color: colors.text }]}>
         {isEditing ? 'Modifier l\'événement' : 'Nouvel événement'}
       </Text>
 
-      {/* Champ titre */}
       <Input
         label="Titre"
         placeholder="Nom de l'événement"
@@ -149,7 +149,6 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         required
       />
 
-      {/* Description */}
       <Input
         label="Description"
         placeholder="Détails (optionnel)"
@@ -159,12 +158,57 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         numberOfLines={2}
       />
 
-      {/* Lieu */}
       <Input
         label="Lieu"
         placeholder="Lieu (optionnel)"
         value={location}
         onChangeText={setLocation}
+      />
+
+      {/* CORRECTION: Bouton pour ouvrir modal catégorie (plus de ScrollView) */}
+      <Text style={[styles.label, { color: colors.text }]}>Catégorie</Text>
+      <TouchableOpacity
+        style={[
+          styles.categoryButton,
+          {
+            backgroundColor: selectedCategory ? selectedCategory.color + '15' : colors.surface,
+            borderColor: selectedCategory ? selectedCategory.color : colors.border,
+          },
+        ]}
+        onPress={() => setShowCategoryPicker(true)}
+      >
+        {selectedCategory && (
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: selectedCategory.color + '20' },
+            ]}
+          >
+            <Ionicons
+              name={selectedCategory.icon as any}
+              size={22}
+              color={selectedCategory.color}
+            />
+          </View>
+        )}
+        <Text
+          style={[
+            styles.categoryText,
+            { color: selectedCategory ? selectedCategory.color : colors.text },
+          ]}
+        >
+          {getCategoryName(categoryId, 'event')}
+        </Text>
+        <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      {/* Modal de sélection catégorie */}
+      <CategoryPicker
+        visible={showCategoryPicker}
+        categories={EVENT_CATEGORIES}
+        selectedId={categoryId}
+        onSelect={setCategoryId}
+        onClose={() => setShowCategoryPicker(false)}
       />
 
       {/* Toute la journée */}
@@ -177,7 +221,7 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         />
       </View>
 
-      {/* Date de début */}
+      {/* Dates */}
       <Text style={[styles.label, { color: colors.text }]}>Date de début</Text>
       <TouchableOpacity
         style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -200,7 +244,6 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         />
       )}
 
-      {/* Heure de début */}
       {!allDay && (
         <>
           <TouchableOpacity
@@ -227,7 +270,6 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         </>
       )}
 
-      {/* Date de fin */}
       <Text style={[styles.label, { color: colors.text }]}>Date de fin</Text>
       <TouchableOpacity
         style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -250,7 +292,6 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         />
       )}
 
-      {/* Heure de fin */}
       {!allDay && (
         <>
           <TouchableOpacity
@@ -277,40 +318,6 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
         </>
       )}
 
-      {/* Couleur */}
-      <Text style={[styles.label, { color: colors.text }]}>Couleur</Text>
-      <View style={styles.colorRow}>
-        {colors_list.map((c) => (
-          <TouchableOpacity
-            key={c}
-            style={[
-              styles.colorButton,
-              { backgroundColor: c },
-              color === c && styles.colorSelected,
-            ]}
-            onPress={() => setColor(c)}
-          />
-        ))}
-      </View>
-
-      {/* Emoji */}
-      <Text style={[styles.label, { color: colors.text }]}>Icône</Text>
-      <View style={styles.emojiRow}>
-        {emojis.map((e) => (
-          <TouchableOpacity
-            key={e}
-            style={[
-              styles.emojiButton,
-              { borderColor: colors.border },
-              emoji === e && { backgroundColor: colors.primary + '20', borderColor: colors.primary },
-            ]}
-            onPress={() => setEmoji(e)}
-          >
-            <Text style={styles.emojiText}>{e}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       {/* Actions */}
       <View style={styles.actions}>
         <Button title="Annuler" onPress={onClose} variant="outline" style={styles.actionButton} />
@@ -320,22 +327,42 @@ export function EventForm({ eventId, initialDate, onClose }: EventFormProps) {
   );
 }
 
-// ==================== STYLES ====================
-
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.sm,
   },
   header: {
     fontSize: TYPOGRAPHY.h3.fontSize,
     fontWeight: '700',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   label: {
     fontSize: TYPOGRAPHY.caption.fontSize,
     fontWeight: '600',
     marginBottom: SPACING.xs,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  // CORRECTION: Bouton pour ouvrir modal (plus de ScrollView)
+  categoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1.5,
+    marginBottom: SPACING.sm,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  categoryText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.body.fontSize,
+    fontWeight: '600',
   },
   switchRow: {
     flexDirection: 'row',
@@ -355,49 +382,17 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   dateText: {
     fontSize: TYPOGRAPHY.body.fontSize,
     flex: 1,
     marginLeft: SPACING.sm,
   },
-  colorRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-  },
-  colorButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  colorSelected: {
-    borderColor: '#000',
-  },
-  emojiRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.xs,
-    marginBottom: SPACING.md,
-  },
-  emojiButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emojiText: {
-    fontSize: 24,
-  },
   actions: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
   },
   actionButton: {
     flex: 1,

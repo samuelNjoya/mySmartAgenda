@@ -9,3 +9,4 @@ export { Spinner } from './Spinner';
 export { EmptyState } from './EmptyState';
 export { BottomSheet } from './BottomSheet';
 export type { BottomSheetRef } from './BottomSheet';
+export { CategoryPicker } from './CategoryPicker';

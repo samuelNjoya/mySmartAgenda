@@ -106,6 +106,10 @@ export function TasksScreen() {
 
   /**
    * Filtre les tâches
+   * CORRECTION: Logique de filtrage corrigée pour Aujourd'hui et Semaine
+   * - Aujourd'hui: tâches avec dueDate === aujourd'hui OU sans date
+   * - Semaine: tâches avec dueDate <= aujourd'hui+7 OU sans date
+   * - Comparaison de dates fixée (utiliser .setHours(0,0,0,0) pour comparer seulement la date)
    */
   function getFilteredTasks(): Task[] {
     let filtered = [...tasks];
@@ -118,36 +122,66 @@ export function TasksScreen() {
     // Filtrer par type
     switch (filter) {
       case 'today':
-        filtered = filtered.filter(
-          (t) =>
-            !t.completed &&
-            t.dueDate &&
-            isTodayCheck(new Date(t.dueDate))
-        );
+        // CORRECTION: Inclure les tâches d'aujourd'hui
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset heures pour comparaison date uniquement
+        
+        filtered = filtered.filter((t) => {
+          if (t.completed) return false;
+          
+          // Si pas de date, ne pas inclure dans Aujourd'hui
+          if (!t.dueDate) return false;
+          
+          const taskDate = new Date(t.dueDate);
+          taskDate.setHours(0, 0, 0, 0);
+          
+          return taskDate.getTime() === today.getTime();
+        });
         break;
+
       case 'week':
-        const weekEnd = new Date();
-        weekEnd.setDate(weekEnd.getDate() + 7);
-        filtered = filtered.filter(
-          (t) =>
-            !t.completed &&
-            t.dueDate &&
-            new Date(t.dueDate) <= weekEnd
-        );
+        // CORRECTION: Inclure les tâches de cette semaine (aujourd'hui à +7 jours)
+        const startOfWeek = new Date();
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const endOfWeek = new Date();
+        endOfWeek.setDate(endOfWeek.getDate() + 7);
+        endOfWeek.setHours(23, 59, 59, 999);
+        
+        filtered = filtered.filter((t) => {
+          if (t.completed) return false;
+          
+          // Si pas de date, ne pas inclure dans Semaine
+          if (!t.dueDate) return false;
+          
+          const taskDate = new Date(t.dueDate);
+          
+          return taskDate >= startOfWeek && taskDate <= endOfWeek;
+        });
         break;
+
       case 'overdue':
-        filtered = filtered.filter(
-          (t) =>
-            !t.completed &&
-            t.dueDate &&
-            new Date(t.dueDate) < new Date()
-        );
+        // Tâches en retard (date passée et non complétées)
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
+        filtered = filtered.filter((t) => {
+          if (t.completed || !t.dueDate) return false;
+          
+          const taskDate = new Date(t.dueDate);
+          taskDate.setHours(0, 0, 0, 0);
+          
+          return taskDate < now;
+        });
         break;
+
       case 'completed':
         filtered = filtered.filter((t) => t.completed);
         break;
+
       case 'all':
       default:
+        // Toutes les tâches non complétées
         filtered = filtered.filter((t) => !t.completed);
         break;
     }
@@ -187,7 +221,7 @@ export function TasksScreen() {
         Toast.show({
           type: 'success',
           text1: allTasks[taskIndex].completed
-            ? 'Tâche terminée ! 🎉'
+            ? 'Tâche terminée !'
             : 'Tâche réactivée',
         });
       }

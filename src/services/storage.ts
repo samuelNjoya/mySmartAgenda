@@ -1,6 +1,7 @@
 /**
  * Service de stockage utilisant AsyncStorage
  * Gère la persistence de toutes les données de l'application
+ * CORRIGÉ : Gère correctement la sérialisation des Dates
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,6 +25,48 @@ export const STORAGE_KEYS = {
   LAST_QUOTE_DATE: '@agenda_last_quote_date',
 } as const;
 
+// ==================== HELPERS DATE ====================
+
+/**
+ * Détecte si une string est une date ISO
+ */
+function isISODateString(value: any): boolean {
+  if (typeof value !== 'string') return false;
+  const isoDatePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+  return isoDatePattern.test(value);
+}
+
+/**
+ * Convertit récursivement les strings ISO en objets Date
+ */
+function reviveDates(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  // Si c'est une string qui ressemble à une date ISO, la convertir
+  if (isISODateString(obj)) {
+    return new Date(obj);
+  }
+
+  // Si c'est un array, parcourir récursivement
+  if (Array.isArray(obj)) {
+    return obj.map(item => reviveDates(item));
+  }
+
+  // Si c'est un objet, parcourir toutes les propriétés
+  if (typeof obj === 'object') {
+    const revivedObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      revivedObj[key] = reviveDates(value);
+    }
+    return revivedObj;
+  }
+
+  // Sinon, retourner tel quel
+  return obj;
+}
+
 // ==================== SERVICE GÉNÉRIQUE ====================
 
 class StorageService {
@@ -36,23 +79,36 @@ class StorageService {
     try {
       const jsonValue = JSON.stringify(value);
       await AsyncStorage.setItem(key, jsonValue);
+      console.log(`✅ Sauvegardé: ${key}`);
     } catch (error) {
-      console.error(`Erreur lors de la sauvegarde (${key}):`, error);
+      console.error(`❌ Erreur lors de la sauvegarde (${key}):`, error);
       throw new Error(`Impossible de sauvegarder les données: ${key}`);
     }
   }
 
   /**
    * Récupère des données depuis AsyncStorage
+   * CORRIGÉ : Convertit automatiquement les strings ISO en Date
    * @param key - Clé de stockage
    * @returns La valeur désérialisée ou null si non trouvée
    */
   async get<T>(key: string): Promise<T | null> {
     try {
       const jsonValue = await AsyncStorage.getItem(key);
-      return jsonValue != null ? JSON.parse(jsonValue) : null;
+      if (jsonValue == null) {
+        return null;
+      }
+
+      // Parse le JSON
+      const parsed = JSON.parse(jsonValue);
+      
+      // Convertit les strings ISO en Date récursivement
+      const revived = reviveDates(parsed);
+      
+      console.log(`✅ Chargé: ${key}`);
+      return revived as T;
     } catch (error) {
-      console.error(`Erreur lors de la récupération (${key}):`, error);
+      console.error(`❌ Erreur lors de la récupération (${key}):`, error);
       return null;
     }
   }
@@ -139,12 +195,15 @@ export async function saveItemToList<T extends { id: string }>(
   if (index >= 0) {
     // Mise à jour
     list[index] = item;
+    console.log(`✅ Mise à jour item: ${item.id} dans ${key}`);
   } else {
     // Ajout
     list.push(item);
+    console.log(`✅ Ajout item: ${item.id} dans ${key}`);
   }
   
   await storage.save(key, list);
+  console.log(`✅ Liste ${key} sauvegardée: ${list.length} items`);
 }
 
 /**
@@ -175,28 +234,40 @@ export async function getItemFromList<T extends { id: string }>(
 }
 
 /**
- * Soft delete - Déplace un élément dans la corbeille
+ * Soft delete - Déplace un élément dans la corbeille OU le marque comme supprimé/archivé
  * @param sourceKey - Clé source
  * @param itemId - ID de l'élément
+ * @param deleteField - Champ à utiliser pour marquer la suppression (default: 'deletedAt')
+ * @param deleteValue - Valeur à mettre dans le champ (default: Date ISO string)
  */
 export async function softDelete(
   sourceKey: string,
-  itemId: string
+  itemId: string,
+  deleteField: string = 'deletedAt',
+  deleteValue: any = new Date().toISOString()
 ): Promise<void> {
   const list = (await storage.get<any[]>(sourceKey)) || [];
   const item = list.find((i) => i.id === itemId);
   
   if (item) {
-    // Marque comme supprimé
-    item.deletedAt = new Date().toISOString();
+    // Marque comme supprimé/archivé
+    item[deleteField] = deleteValue;
     
-    // Sauvegarde dans la corbeille
-    const deleted = (await storage.get<any[]>(STORAGE_KEYS.DELETED)) || [];
-    deleted.push({ ...item, sourceKey });
-    await storage.save(STORAGE_KEYS.DELETED, deleted);
+    // Si c'est un soft delete classique (deletedAt), mettre dans la corbeille
+    if (deleteField === 'deletedAt') {
+      // Sauvegarde dans la corbeille
+      const deleted = (await storage.get<any[]>(STORAGE_KEYS.DELETED)) || [];
+      deleted.push({ ...item, sourceKey });
+      await storage.save(STORAGE_KEYS.DELETED, deleted);
+      
+      // Supprime de la source
+      await removeItemFromList(sourceKey, itemId);
+    } else {
+      // Sinon (comme 'archived'), juste mettre à jour l'item
+      await storage.save(sourceKey, list);
+    }
     
-    // Supprime de la source
-    await removeItemFromList(sourceKey, itemId);
+    console.log(`✅ Soft delete: ${itemId} (${deleteField}=${deleteValue})`);
   }
 }
 

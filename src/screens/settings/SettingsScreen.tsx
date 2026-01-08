@@ -40,6 +40,9 @@ export function SettingsScreen() {
 
   // ==================== FONCTIONS ====================
 
+  function showVersion(){
+    Alert.alert("1.0.0")
+  }
   /**
    * Charge les paramètres
    */
@@ -335,7 +338,7 @@ export function SettingsScreen() {
         </Text>
 
         <Card variant="outlined">
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={showVersion}>
             <View style={styles.settingLeft}>
               <Ionicons
                 name="information-circle"
@@ -368,14 +371,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: TYPOGRAPHY.h3.fontSize,
     fontWeight: '600',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginTop: 0,
+    marginBottom: 2,
   },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
+    paddingVertical: 0,
   },
   settingLeft: {
     flexDirection: 'row',
@@ -390,8 +393,8 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.body.fontSize,
   },
   changePinButton: {
-    marginTop: SPACING.md,
-    paddingTop: SPACING.md,
+    marginTop: 0,
+    paddingTop: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
@@ -405,12 +408,12 @@ const styles = StyleSheet.create({
   pinSetupTitle: {
     fontSize: TYPOGRAPHY.h4.fontSize,
     fontWeight: '600',
-    marginBottom: SPACING.md,
+    marginBottom: 4,
   },
   pinSetupActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: SPACING.md,
+    marginTop: 2,
   },
   pinActionButton: {
     flex: 1,

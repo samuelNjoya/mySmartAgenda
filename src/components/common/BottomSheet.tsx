@@ -132,38 +132,41 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(
           }}
         />
 
-        {/* BottomSheet */}
-        <Animated.View
-          style={[
-            styles.bottomSheet,
-            {
-              backgroundColor: colors.background,
-              transform: [{ translateY }],
-              height: SCREEN_HEIGHT * snapPoint,
-            },
-          ]}
+        {/* CORRECTION: KeyboardAvoidingView AUTOUR du BottomSheet, pas dedans */}
+        {/* Cela permet au sheet de monter avec le clavier au lieu d'être masqué */}
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {/* Barre de glissement */}
-          <View style={styles.handleContainer} {...panResponder.panHandlers}>
-            <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          </View>
-
-          {/* Contenu */}
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              {
+                backgroundColor: colors.background,
+                transform: [{ translateY }],
+                height: SCREEN_HEIGHT * snapPoint,
+              },
+            ]}
           >
+            {/* Barre de glissement */}
+            <View style={styles.handleContainer} {...panResponder.panHandlers}>
+              <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            </View>
+
+            {/* Contenu avec ScrollView */}
+            {/* CORRECTION: Padding réduit de SPACING.md (16px) à SPACING.sm (8px) */}
             <ScrollView
               style={styles.content}
               contentContainerStyle={styles.contentContainer}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              bounces={false}
             >
               {children}
             </ScrollView>
-          </KeyboardAvoidingView>
-        </Animated.View>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </Modal>
     );
   }
@@ -175,12 +178,15 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 9998, // Au-dessus de tout sauf le BottomSheet
+  },
+  // CORRECTION: Style pour KeyboardAvoidingView avec zIndex très élevé
+  keyboardView: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    zIndex: 9999, // Plus élevé que la TabBar pour être au-dessus
   },
   bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
     shadowColor: '#000',
@@ -188,6 +194,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
+    zIndex: 10000, // zIndex le plus élevé pour être au-dessus de TOUT
   },
   handleContainer: {
     paddingVertical: SPACING.sm,
@@ -201,8 +208,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  // CORRECTION: Padding réduit de SPACING.md (16px) à SPACING.sm (8px)
   contentContainer: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xl,
+    padding: SPACING.sm, // Était SPACING.md
+    paddingBottom: SPACING.lg, // Extra espace pour clavier
   },
 });
