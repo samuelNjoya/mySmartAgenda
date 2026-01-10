@@ -1,5 +1,5 @@
 import { useLoaderData } from "react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getDB } from "~/db/getDB";
 
 export async function loader() {
@@ -7,14 +7,59 @@ export async function loader() {
   const timesheetsAndEmployees = await db.all(
     "SELECT timesheets.*, employees.full_name FROM timesheets JOIN employees ON timesheets.employee_id = employees.id ORDER BY timesheets.start_time DESC"
   );
-  return { timesheetsAndEmployees };
+  const employees = await db.all(
+    "SELECT DISTINCT employees.id, employees.full_name FROM employees JOIN timesheets ON employees.id = timesheets.employee_id ORDER BY employees.full_name"
+  );
+  return { timesheetsAndEmployees, employees };
 }
 
 export default function TimesheetsPage() {
-  const { timesheetsAndEmployees } = useLoaderData();
+  const { timesheetsAndEmployees, employees } = useLoaderData();
   const [isTableView, setIsTableView] = useState(true);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
   const [calendarError, setCalendarError] = useState(null);
+  
+  // États pour recherche, filtre et pagination
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterEmployee, setFilterEmployee] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  // Filtrer et rechercher les timesheets
+  const filteredTimesheets = useMemo(() => {
+    let result = [...timesheetsAndEmployees];
+
+    // Recherche (Bonus 11)
+    if (searchTerm) {
+      result = result.filter((ts: any) =>
+        ts.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (ts.summary && ts.summary.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    }
+
+    // Filtre par employé (Bonus 12)
+    if (filterEmployee !== "all") {
+      result = result.filter((ts: any) => String(ts.employee_id) === filterEmployee);
+    }
+
+    return result;
+  }, [timesheetsAndEmployees, searchTerm, filterEmployee]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTimesheets.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedTimesheets = filteredTimesheets.slice(startIndex, startIndex + itemsPerPage);
+
+  // Réinitialiser la page quand on filtre/recherche
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleFilter = (value: string) => {
+    setFilterEmployee(value);
+    setCurrentPage(1);
+  };
 
   // Charger le calendrier uniquement côté client
   useEffect(() => {
@@ -30,7 +75,6 @@ export default function TimesheetsPage() {
             import('@schedule-x/react')
           ]);
 
-          // Import du CSS séparément
           await import('@schedule-x/theme-default/dist/index.css');
 
           if (!isMounted) return;
@@ -40,8 +84,7 @@ export default function TimesheetsPage() {
           const { createCalendar, createViewWeek, createViewMonthGrid } = calendarModule;
           const { ScheduleXCalendar } = reactModule;
 
-          // Créer les événements
-          const calendarEvents = timesheetsAndEmployees.map((timesheet) => ({
+          const calendarEvents = timesheetsAndEmployees.map((timesheet: any) => ({
             id: String(timesheet.id),
             title: `${timesheet.full_name}${timesheet.summary ? ' - ' + timesheet.summary : ''}`,
             start: timesheet.start_time.replace(' ', 'T'),
@@ -50,7 +93,6 @@ export default function TimesheetsPage() {
 
           console.log("Événements créés:", calendarEvents.length);
 
-          // Créer le calendrier
           const calendar = createCalendar({
             views: [createViewWeek(), createViewMonthGrid()],
             events: calendarEvents,
@@ -59,7 +101,6 @@ export default function TimesheetsPage() {
 
           console.log("Calendrier créé avec succès");
 
-          // Attacher le calendrier au DOM
           const calendarContainer = document.getElementById('calendar-container');
           if (calendarContainer) {
             calendar.render(calendarContainer);
@@ -121,8 +162,42 @@ export default function TimesheetsPage() {
       {isTableView ? (
         /* Vue Tableau */
         <div>
+          {/* Barre de recherche et filtre (Bonus 11 & 12) */}
+          <div style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="Rechercher (employé, résumé)..."
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                flex: "1",
+                minWidth: "200px"
+              }}
+            />
+            
+            <select
+              value={filterEmployee}
+              onChange={(e) => handleFilter(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                minWidth: "200px"
+              }}
+            >
+              <option value="all">Tous les employés</option>
+              {employees.map((emp: any) => (
+                <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Compteur */}
           <div style={{ marginBottom: "10px", color: "#666" }}>
-            {timesheetsAndEmployees.length} feuille(s) de temps
+            {filteredTimesheets.length} feuille(s) de temps trouvée(s)
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -171,14 +246,14 @@ export default function TimesheetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {timesheetsAndEmployees.length === 0 ? (
+                {paginatedTimesheets.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "#999" }}>
                       Aucune feuille de temps trouvée
                     </td>
                   </tr>
                 ) : (
-                  timesheetsAndEmployees.map((timesheet: any) => (
+                  paginatedTimesheets.map((timesheet: any) => (
                     <tr key={timesheet.id} style={{ borderBottom: "1px solid #eee" }}>
                       <td style={{ padding: "12px" }}>{timesheet.full_name}</td>
                       <td style={{ padding: "12px" }}>{timesheet.start_time}</td>
@@ -205,6 +280,49 @@ export default function TimesheetsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{
+              marginTop: "20px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "10px"
+            }}>
+              <button
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  backgroundColor: currentPage === 1 ? "#f5f5f5" : "white",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer"
+                }}
+              >
+                Précédent
+              </button>
+              
+              <span style={{ color: "#666" }}>
+                Page {currentPage} sur {totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  backgroundColor: currentPage === totalPages ? "#f5f5f5" : "white",
+                  cursor: currentPage === totalPages ? "not-allowed" : "pointer"
+                }}
+              >
+                Suivant
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Vue Calendrier */
